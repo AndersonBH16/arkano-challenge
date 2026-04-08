@@ -1,7 +1,3 @@
-// ─── CONSUMER: ESCUCHA EVENTOS DE TRANSACCIONES ───────────────
-// Cuando el servicio de transacciones completa una operación,
-// este consumer actualiza el saldo de las cuentas involucradas.
-
 import { IEventBus } from '../../application/ports/IEventBus';
 import { UpdateBalanceUseCase} from "../../application/use-cases/UpdateBalanceUseCase";
 
@@ -38,7 +34,6 @@ export class TransactionEventConsumer {
 
         try {
             if (payload.type === 'DEPOSIT' && payload.targetAccountId) {
-                // Acreditar en cuenta destino
                 await this.updateBalanceUseCase.execute({
                     accountId: payload.targetAccountId,
                     amount: payload.amount,
@@ -46,7 +41,6 @@ export class TransactionEventConsumer {
                     reason: 'DEPOSIT',
                 });
             } else if (payload.type === 'WITHDRAWAL' && payload.sourceAccountId) {
-                // Debitar de cuenta origen
                 await this.updateBalanceUseCase.execute({
                     accountId: payload.sourceAccountId,
                     amount: payload.amount,
@@ -54,7 +48,6 @@ export class TransactionEventConsumer {
                     reason: 'WITHDRAWAL',
                 });
             } else if (payload.type === 'TRANSFER') {
-                // Debitar origen y acreditar destino
                 if (payload.sourceAccountId) {
                     await this.updateBalanceUseCase.execute({
                         accountId: payload.sourceAccountId,
@@ -76,7 +69,6 @@ export class TransactionEventConsumer {
             console.log(`[Consumer] Saldo actualizado para transacción: ${payload.transactionId}`);
         } catch (error) {
             console.error('[Consumer] Error actualizando saldo:', error);
-            // En producción: enviar a Dead Letter Queue (DLQ)
         }
     }
 }

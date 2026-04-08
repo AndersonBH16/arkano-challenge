@@ -1,7 +1,3 @@
-// ─── IMPLEMENTACIÓN KAFKA DEL BUS DE EVENTOS ─────────────────
-// Aquí está la implementación concreta de IEventBus usando KafkaJS.
-// El dominio/aplicación nunca sabe que existe Kafka.
-
 import { Kafka, Producer, Consumer, logLevel } from 'kafkajs';
 import { IEventBus } from '../../application/ports/IEventBus';
 
@@ -21,7 +17,6 @@ export class KafkaEventBus implements IEventBus {
             },
         });
         this.producer = this.kafka.producer({
-            // Garantiza que los mensajes no se dupliquen en reintentos
             idempotent: true,
         });
     }
@@ -39,14 +34,12 @@ export class KafkaEventBus implements IEventBus {
         console.log('[Kafka] Desconectado');
     }
 
-    // Publica un evento en un tópico de Kafka
     async publish(topic: string, event: unknown): Promise<void> {
         try {
             await this.producer.send({
                 topic,
                 messages: [
                     {
-                        // La key permite garantizar orden por entidad
                         key: this.extractKey(event),
                         value: JSON.stringify(event),
                         headers: {
@@ -63,14 +56,12 @@ export class KafkaEventBus implements IEventBus {
         }
     }
 
-    // Suscribe un handler a un tópico
     async subscribe(
         topic: string,
         handler: (event: unknown) => Promise<void>,
     ): Promise<void> {
         const consumer = this.kafka.consumer({
             groupId: `accounts-service-${topic}`,
-            // Reintentar mensajes fallidos automáticamente
             retry: { retries: 3 },
         });
 
@@ -84,11 +75,10 @@ export class KafkaEventBus implements IEventBus {
                     if (!value) return;
 
                     const event = JSON.parse(value);
-                    console.log(`[Kafka] Evento recibido ← ${topic}:`, event.eventType);
+                    console.log(`[Kafka] Evento recibido - ${topic}:`, event.eventType);
 
                     await handler(event);
                 } catch (error) {
-                    // Log del error pero no relanzamos para no bloquear el consumer
                     console.error(`[Kafka] Error procesando mensaje de ${topic}:`, error);
                 }
             },
@@ -101,7 +91,6 @@ export class KafkaEventBus implements IEventBus {
     private extractKey(event: unknown): string {
         if (typeof event === 'object' && event !== null) {
             const e = event as Record<string, unknown>;
-            // Usa el eventId como key para idempotencia
             return String(e['eventId'] ?? '');
         }
         return '';
