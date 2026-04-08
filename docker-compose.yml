@@ -1,6 +1,5 @@
 services:
-    # Infraestructura
-
+  # Infraestructura
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
@@ -98,7 +97,6 @@ services:
       - banking-network
 
 # Microservicios
-
   accounts-service:
     build:
       context: ./accounts-service
