@@ -1,9 +1,7 @@
 #!/bin/bash
 cd "$(dirname "$0")/.." || exit 1
-# ─────────────────────────────────────────────────────────────
-#  test-api.sh — Script completo para probar la Banking Platform
+
 #  Uso: chmod +x test-api.sh && ./test-api.sh
-# ─────────────────────────────────────────────────────────────
 
 set -e
 
@@ -23,7 +21,6 @@ info() { echo -e "${CYAN}▶ $1${NC}"; }
 warn() { echo -e "${YELLOW}⚠ $1${NC}"; }
 sep()  { echo -e "\n${YELLOW}══════════════════════════════════════${NC}"; }
 
-# ─── Función helper para extraer campo JSON ───────────────────
 json_get() { echo "$1" | grep -o "\"$2\":\"[^\"]*\"" | head -1 | cut -d'"' -f4; }
 json_get_num() { echo "$1" | grep -o "\"$2\":[0-9.]*" | head -1 | cut -d':' -f2; }
 
@@ -31,7 +28,6 @@ sep
 echo -e "${CYAN}  🏦 BANKING PLATFORM — TEST SUITE${NC}"
 sep
 
-# ─── 1. Health Checks ─────────────────────────────────────────
 info "1. Verificando health checks..."
 
 R=$(curl -sf "$ACCOUNTS_URL/health" || fail "accounts-service no responde")
@@ -43,7 +39,6 @@ ok "transactions-service: $(echo $R | grep -o '"status":"[^"]*"')"
 R=$(curl -sf "$AI_URL/health" || fail "ai-service no responde")
 ok "ai-service: $(echo $R | grep -o '"status":"[^"]*"')"
 
-# ─── 2. Autenticación JWT ─────────────────────────────────────
 sep
 info "2. Autenticación JWT..."
 
@@ -57,11 +52,9 @@ REFRESH=$(echo "$LOGIN" | grep -o '"refreshToken":"[^"]*"' | cut -d'"' -f4)
 [ -n "$TOKEN" ] || fail "No se obtuvo accessToken"
 ok "Login exitoso — Token obtenido"
 
-# Test: ruta protegida sin token debe dar 401
 STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$ACCOUNTS_URL/customers")
 [ "$STATUS" = "401" ] && ok "Ruta protegida sin token → 401 ✔" || warn "Esperaba 401, got $STATUS"
 
-# Test: refresh token
 REFRESH_RESP=$(curl -sf -X POST "$ACCOUNTS_URL/auth/refresh" \
   -H "Content-Type: application/json" \
   -d "{\"refreshToken\":\"$REFRESH\"}")
@@ -70,7 +63,6 @@ NEW_TOKEN=$(echo "$REFRESH_RESP" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -
 
 AUTH="-H \"Authorization: Bearer $TOKEN\""
 
-# ─── 3. Crear Clientes ────────────────────────────────────────
 sep
 info "3. Creando clientes..."
 
@@ -100,14 +92,12 @@ CUSTOMER2=$(curl -sf -X POST "$ACCOUNTS_URL/customers" \
 C2_ID=$(json_get "$CUSTOMER2" "id")
 ok "Cliente 2 creado: Carlos Mendoza (ID: $C2_ID)"
 
-# Test: email duplicado debe dar error
 DUP=$(curl -sf -X POST "$ACCOUNTS_URL/customers" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"name":"Test","email":"ana.torres@email.com","document":"99999999"}' || true)
 echo "$DUP" | grep -q "error" && ok "Email duplicado rechazado correctamente" || warn "Email duplicado no fue rechazado"
 
-# ─── 4. Crear Cuentas ─────────────────────────────────────────
 sep
 info "4. Creando cuentas bancarias..."
 
@@ -183,7 +173,6 @@ TX2_ID=$(json_get "$WITHDRAWAL" "transactionId")
 ok "Retiro iniciado: $TX2_ID"
 sleep 2
 
-# ─── 8. Transferencia exitosa ─────────────────────────────────
 sep
 info "8. Ejecutando transferencia de cuenta 1 → cuenta 2..."
 
@@ -208,7 +197,6 @@ TX3_DETAIL=$(curl -sf "$TRANSACTIONS_URL/transactions/$TX3_ID" \
 TX3_STATUS=$(json_get "$TX3_DETAIL" "status")
 ok "Transferencia finalizada: $TX3_STATUS"
 
-# ─── 9. Transferencia rechazada (fondos insuficientes) ────────
 sep
 info "9. Probando transferencia con fondos insuficientes..."
 
@@ -232,7 +220,6 @@ TX4_STATUS=$(json_get "$TX4_DETAIL" "status")
 [ "$TX4_STATUS" = "REJECTED" ] && ok "Transacción rechazada correctamente por fondos insuficientes" \
   || warn "Status inesperado: $TX4_STATUS"
 
-# ─── 10. Test idempotencia ────────────────────────────────────
 sep
 info "10. Probando idempotencia (mismo request dos veces)..."
 
@@ -264,7 +251,6 @@ IDEM_TX_ID2=$(json_get "$TX_IDEM2" "transactionId")
   && ok "Idempotencia funciona: mismo ID retornado ($IDEM_TX_ID)" \
   || warn "IDs diferentes — idempotencia falló"
 
-# ─── 11. Verificar saldos finales ─────────────────────────────
 sep
 info "11. Verificando saldos finales..."
 
@@ -278,18 +264,15 @@ BAL2_FINAL=$(curl -sf "$ACCOUNTS_URL/accounts/$A2_ID/balance" \
 ok "Saldo cuenta 1 (Ana): $(echo $BAL1_FINAL | grep -o '"balance":[0-9.]*') PEN"
 ok "Saldo cuenta 2 (Carlos): $(echo $BAL2_FINAL | grep -o '"balance":[0-9.]*') PEN"
 
-# ─── 12. AI Service ───────────────────────────────────────────
 sep
 info "12. Verificando explicaciones del AI Service..."
 
 sleep 1
 
-# Listar todas las explicaciones
 EXPLANATIONS=$(curl -sf "$AI_URL/ai/explanations?limit=5")
 COUNT=$(echo "$EXPLANATIONS" | grep -o '"id"' | wc -l | tr -d ' ')
 ok "AI Service generó $COUNT explicaciones automáticamente"
 
-# Explicación de la transacción rechazada
 if [ -n "$TX4_ID" ]; then
   EXPL=$(curl -sf "$AI_URL/ai/explanations/$TX4_ID" || echo '{"success":false}')
   if echo "$EXPL" | grep -q '"success":true'; then
@@ -300,7 +283,6 @@ if [ -n "$TX4_ID" ]; then
   fi
 fi
 
-# ─── 13. Historial de transacciones ───────────────────────────
 sep
 info "13. Verificando historial de cuenta 1..."
 
@@ -309,7 +291,6 @@ HISTORY=$(curl -sf "$TRANSACTIONS_URL/transactions/account/$A1_ID" \
 TX_COUNT=$(echo "$HISTORY" | grep -o '"id"' | wc -l | tr -d ' ')
 ok "Historial cuenta 1: $TX_COUNT transacciones"
 
-# ─── Resumen ──────────────────────────────────────────────────
 sep
 echo -e "${GREEN}"
 echo "  ╔══════════════════════════════════════╗"

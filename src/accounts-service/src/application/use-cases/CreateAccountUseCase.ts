@@ -1,5 +1,3 @@
-// ─── CASO DE USO: CREAR CUENTA BANCARIA ──────────────────────
-
 import { v4 as uuidv4 } from 'uuid';
 import { Account} from "../../domain/entities/Accounts";
 import { ICustomerRepository} from "../../domain/repositories/ICustomerRepository";
@@ -31,16 +29,14 @@ export class CreateAccountUseCase {
     ) {}
 
     async execute(dto: CreateAccountDTO): Promise<CreateAccountResult> {
-        // 1. Verificar que el cliente existe
         const customer = await this.customerRepository.findById(dto.customerId);
+
         if (!customer) {
             throw new Error(`Cliente no encontrado: ${dto.customerId}`);
         }
 
-        // 2. Generar número de cuenta único
         const accountNumber = this.generateAccountNumber();
 
-        // 3. Crear la entidad Account (validaciones en el dominio)
         const account = Account.create({
             id: uuidv4(),
             customerId: dto.customerId,
@@ -49,10 +45,8 @@ export class CreateAccountUseCase {
             currency: dto.currency ?? 'PEN',
         });
 
-        // 4. Persistir
         const saved = await this.accountRepository.save(account);
 
-        // 5. Publicar evento
         const event: AccountCreatedEvent = {
             eventId: uuidv4(),
             eventType: 'AccountCreated',
@@ -80,9 +74,8 @@ export class CreateAccountUseCase {
         };
     }
 
-    // Genera un número de cuenta bancaria de 14 dígitos
     private generateAccountNumber(): string {
-        const prefix = '0021'; // Código del banco
+        const prefix = '0021';
         const random = Math.floor(Math.random() * 10_000_000_000).toString().padStart(10, '0');
         return `${prefix}${random}`;
     }
