@@ -15,7 +15,7 @@ export interface ProcessTransactionDTO {
   amount: number;
   currency?: string;
   description?: string;
-  idempotencyKey?: string; // Si no se provee, se genera uno
+  idempotencyKey?: string;
 }
 
 export interface ProcessTransactionResult {
@@ -33,10 +33,8 @@ export class ProcessTransactionUseCase {
 
   async execute(dto: ProcessTransactionDTO): Promise<ProcessTransactionResult> {
     const idempotencyKey = dto.idempotencyKey ?? uuidv4();
-
-    // ─── 1. Verificar idempotencia ────────────────────────────
-    // Si ya existe una transacción con esta key, retornar la existente
     const existing = await this.transactionRepo.findByIdempotencyKey(idempotencyKey);
+
     if (existing) {
       console.log(`[Idempotencia] Transacción ya existe: ${existing.id}`);
       return {
@@ -46,7 +44,6 @@ export class ProcessTransactionUseCase {
       };
     }
 
-    // ─── 2. Crear transacción en estado PENDING ───────────────
     const transaction = Transaction.create({
       id: uuidv4(),
       type: dto.type,
@@ -60,8 +57,6 @@ export class ProcessTransactionUseCase {
 
     await this.transactionRepo.save(transaction);
 
-    // ─── 3. Publicar evento TransactionRequested ──────────────
-    // La transacción es asíncrona: se registra y procesa luego
     const requestedEvent: TransactionRequestedEvent = {
       eventId: uuidv4(),
       eventType: 'TransactionRequested',
@@ -79,10 +74,6 @@ export class ProcessTransactionUseCase {
     };
 
     await this.eventBus.publish('transaction.requested', requestedEvent);
-
-    // ─── 4. Procesar la transacción (simula worker asíncrono) ─
-    // En producción real esto sería un worker separado
-    // Para esta demo, lo procesamos inmediatamente
     setImmediate(() => this.processTransaction(transaction.id, dto));
 
     return {
@@ -92,7 +83,6 @@ export class ProcessTransactionUseCase {
     };
   }
 
-  // ─── Worker: valida y ejecuta la transacción ─────────────────
   private async processTransaction(
     transactionId: string,
     dto: ProcessTransactionDTO,
@@ -101,14 +91,10 @@ export class ProcessTransactionUseCase {
     if (!transaction) return;
 
     try {
-      // Validar cuentas y fondos
       await this.validateTransaction(dto);
-
-      // Marcar como completada
       transaction.complete();
       await this.transactionRepo.update(transaction);
 
-      // Publicar evento de éxito
       const completedEvent: TransactionCompletedEvent = {
         eventId: uuidv4(),
         eventType: 'TransactionCompleted',
@@ -129,12 +115,10 @@ export class ProcessTransactionUseCase {
       await this.eventBus.publish('transaction.completed', completedEvent);
       console.log(`[Transaction] Completada: ${transactionId}`);
     } catch (error) {
-      // Marcar como rechazada
       const reason = error instanceof Error ? error.message : 'Error desconocido';
       transaction.reject(reason);
       await this.transactionRepo.update(transaction);
 
-      // Publicar evento de rechazo
       const rejectedEvent: TransactionRejectedEvent = {
         eventId: uuidv4(),
         eventType: 'TransactionRejected',
@@ -159,7 +143,6 @@ export class ProcessTransactionUseCase {
   }
 
   private async validateTransaction(dto: ProcessTransactionDTO): Promise<void> {
-    // Validar cuenta origen para WITHDRAWAL y TRANSFER
     if (dto.sourceAccountId) {
       const sourceAccount = await this.accountsClient.getAccount(dto.sourceAccountId);
       if (!sourceAccount) {
@@ -175,7 +158,6 @@ export class ProcessTransactionUseCase {
       }
     }
 
-    // Validar cuenta destino para DEPOSIT y TRANSFER
     if (dto.targetAccountId) {
       const targetAccount = await this.accountsClient.getAccount(dto.targetAccountId);
       if (!targetAccount) {

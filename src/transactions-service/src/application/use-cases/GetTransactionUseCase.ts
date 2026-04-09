@@ -1,5 +1,4 @@
-// ─── CASO DE USO: CONSULTAR TRANSACCIÓN ──────────────────────
-import { ITransactionRepository } from '../../domain/repositories';
+import { ITransactionRepository} from "../../domain/repositories/ITransactionRepository";
 import { TransactionProps } from '../../domain/entities/Transaction';
 
 export class GetTransactionUseCase {
