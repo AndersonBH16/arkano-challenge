@@ -38,10 +38,10 @@ describe('Account Entity', () => {
       expect(account.balance).toBe(700);
     });
 
-    it('debe lanzar error si el monto a acreditar es cero o negativo', () => {
+    it('debe lanzar error si el monto a depositar es cero o negativo', () => {
       const account = Account.create(validProps);
-      expect(() => account.credit(0)).toThrow('El monto a acreditar debe ser mayor a 0');
-      expect(() => account.credit(-50)).toThrow('El monto a acreditar debe ser mayor a 0');
+      expect(() => account.credit(0)).toThrow('El monto a depositar debe ser mayor a 0');
+      expect(() => account.credit(-50)).toThrow('El monto a depositar debe ser mayor a 0');
     });
   });
 
@@ -59,7 +59,7 @@ describe('Account Entity', () => {
 
     it('debe lanzar error si el monto es cero o negativo', () => {
       const account = Account.create(validProps);
-      expect(() => account.debit(0)).toThrow('El monto a debitar debe ser mayor a 0');
+      expect(() => account.debit(0)).toThrow('El monto a retirar debe ser mayor a 0');
     });
   });
 
